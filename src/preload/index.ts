@@ -12,7 +12,8 @@ const api = {
   ref: {
     departments: () => ipcRenderer.invoke('ref:departments'),
     points: () => ipcRenderer.invoke('ref:points'),
-    addPoint: (name: string, type: string) => ipcRenderer.invoke('ref:addPoint', name, type),
+    addPoint: (name: string, type: string, departmentId: number) =>
+      ipcRenderer.invoke('ref:addPoint', name, type, departmentId),
     inventoryTableDefs: () => ipcRenderer.invoke('ref:inventoryTableDefs')
   },
   daily: {
@@ -20,15 +21,11 @@ const api = {
     create: (entry: unknown) => ipcRenderer.invoke('daily:create', entry),
     delete: (id: number) => ipcRenderer.invoke('daily:delete', id)
   },
-  weekly: {
-    list: (weekStart: string, weekEnd: string) => ipcRenderer.invoke('weekly:list', weekStart, weekEnd),
-    create: (entry: unknown) => ipcRenderer.invoke('weekly:create', entry),
-    delete: (id: number) => ipcRenderer.invoke('weekly:delete', id)
-  },
   inventory: {
     gridGet: (tableId: string, month: string) => ipcRenderer.invoke('inventory:gridGet', tableId, month),
     gridSet: (tableId: string, month: string, departmentId: number, columnKey: string, value: number) =>
       ipcRenderer.invoke('inventory:gridSet', tableId, month, departmentId, columnKey, value),
+    t2_1Get: (month: string) => ipcRenderer.invoke('inventory:t2_1Get', month),
     logList: (tableId: string, month: string) => ipcRenderer.invoke('inventory:logList', tableId, month),
     logAdd: (tableId: string, month: string, data: unknown, createdBy: number) =>
       ipcRenderer.invoke('inventory:logAdd', tableId, month, data, createdBy),

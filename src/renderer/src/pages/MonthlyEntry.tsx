@@ -91,16 +91,18 @@ function GridTableEditor({
   departments: Department[]
 }): JSX.Element {
   const [values, setValues] = useState<Record<string, number>>({})
+  const isComputed = def.id === 'T2_1'
 
   useEffect(() => {
-    window.api.inventory.gridGet(def.id, month).then((rows) => {
+    const fetcher = isComputed ? window.api.inventory.t2_1Get(month) : window.api.inventory.gridGet(def.id, month)
+    fetcher.then((rows) => {
       const map: Record<string, number> = {}
       for (const r of rows as Array<{ departmentId: number; columnKey: string; value: number }>) {
         map[`${r.departmentId}|${r.columnKey}`] = r.value
       }
       setValues(map)
     })
-  }, [def.id, month])
+  }, [def.id, month, isComputed])
 
   const onChange = (deptId: number, colKey: string, raw: string): void => {
     const val = raw === '' ? 0 : Number(raw)
@@ -132,13 +134,17 @@ function GridTableEditor({
                 <td>{d.name}</td>
                 {def.columns.map((c) => (
                   <td key={c.key}>
-                    <input
-                      type="number"
-                      style={{ width: 90 }}
-                      value={values[`${d.id}|${c.key}`] ?? ''}
-                      onChange={(e) => onChange(d.id, c.key, e.target.value)}
-                      onBlur={() => onBlurSave(d.id, c.key)}
-                    />
+                    {isComputed ? (
+                      values[`${d.id}|${c.key}`] ?? 0
+                    ) : (
+                      <input
+                        type="number"
+                        style={{ width: 90 }}
+                        value={values[`${d.id}|${c.key}`] ?? ''}
+                        onChange={(e) => onChange(d.id, c.key, e.target.value)}
+                        onBlur={() => onBlurSave(d.id, c.key)}
+                      />
+                    )}
                   </td>
                 ))}
               </tr>

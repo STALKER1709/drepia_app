@@ -82,6 +82,7 @@ export const INVENTORY_TABLES: TableDef[] = [
   {
     kind: 'grid', id: 'T2_1', section: 'SECTION 2: INDUSTRIES ANIMALES ET HALIEUTIQUES',
     title: 'Tableau 2.1: Statistiques sur les abattages controles', rowScope: 'department',
+    note: 'Valeurs calculees automatiquement a partir des abattages controles saisis dans la Saisie journaliere.',
     columns: ['Bovins abattus', 'Ovins abattus', 'Caprins abattus', 'Porcins abattus', 'Volaille abattue']
       .map((l) => ({ key: l.toLowerCase().replace(/\s+/g, '_'), label: l }))
   },

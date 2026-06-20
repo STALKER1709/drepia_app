@@ -17,6 +17,7 @@ export interface CollectionPoint {
   id: number
   name: string
   type: string // marche | abattoir | embarquement | debarquement
+  departmentId: number | null
 }
 
 /** A column in a grid-type table. Nested headers are expressed via `group`. */
@@ -67,8 +68,15 @@ export interface DailyEntryRow {
   ecart?: number | null
   tendance?: 'HAUSSE' | 'BAISSE' | 'STABLE' | null
   prix?: string | null
+  direction?: 'entree' | 'sortie'
+  place?: string | null // provenance (entree) ou destination (sortie)
 }
 
+/**
+ * Shape consumed by the weekly report builder. Computed on the fly from
+ * `daily_entries` (grouped by point/espece/sens) rather than persisted —
+ * the weekly report is a rollup of daily entries, not a separate entry form.
+ */
 export interface WeeklyMovementRow {
   id?: number
   weekStart: string

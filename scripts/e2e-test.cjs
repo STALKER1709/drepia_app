@@ -13,29 +13,35 @@ app.whenReady().then(() => {
 
       const dept = db.prepare('SELECT * FROM departments LIMIT 1').get()
       const point = db.prepare('SELECT * FROM collection_points LIMIT 1').get()
+      const etoudiPoint = db.prepare("SELECT * FROM collection_points WHERE name LIKE '%Etoudi%'").get() || point
       const admin = db.prepare("SELECT * FROM users WHERE username = 'admin'").get()
 
       const date = '2026-04-11'
       db.prepare(
-        `INSERT INTO daily_entries (date, species, pointId, category, nombre, quantiteT, ecart, tendance, prix, createdBy)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`
-      ).run(date, 'Bovine', point.id, 'abattage', 124, 24.18, -16.77, 'BAISSE', '2500 Fcfa', admin.id)
+        `INSERT INTO daily_entries (date, species, pointId, category, nombre, quantiteT, ecart, tendance, prix, direction, place, createdBy)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+      ).run(date, 'Bovine', point.id, 'abattage', 124, 24.18, -16.77, 'BAISSE', '2500 Fcfa', 'entree', null, admin.id)
 
+      // Weekly market movements are now captured as daily entries (direction + place)
+      // instead of a separate weekly entry, then rolled up for the weekly report.
       db.prepare(
-        `INSERT INTO weekly_movements (weekStart, weekEnd, marketName, species, direction, place, effectif, prixMoyen, createdBy)
-         VALUES (?,?,?,?,?,?,?,?,?)`
-      ).run('2026-04-06', '2026-04-12', 'Etoudi', 'bovins', 'entree', 'ADAMAOUA', 1300, null, admin.id)
+        `INSERT INTO daily_entries (date, species, pointId, category, nombre, direction, place, createdBy)
+         VALUES (?,?,?,?,?,?,?,?)`
+      ).run('2026-04-08', 'bovins', etoudiPoint.id, 'sur_pied', 1300, 'entree', 'ADAMAOUA', admin.id)
       db.prepare(
-        `INSERT INTO weekly_movements (weekStart, weekEnd, marketName, species, direction, place, effectif, prixMoyen, createdBy)
-         VALUES (?,?,?,?,?,?,?,?,?)`
-      ).run('2026-04-06', '2026-04-12', 'Etoudi', 'bovins', 'sortie', 'KYE-OSI', 120, null, admin.id)
+        `INSERT INTO daily_entries (date, species, pointId, category, nombre, direction, place, createdBy)
+         VALUES (?,?,?,?,?,?,?,?)`
+      ).run('2026-04-09', 'bovins', etoudiPoint.id, 'sur_pied', 120, 'sortie', 'KYE-OSI', admin.id)
 
       db.prepare(
         `INSERT INTO inventory_grid_values (tableId, month, departmentId, columnKey, value) VALUES (?,?,?,?,?)`
       ).run('T1_1', '2026-01', dept.id, 'bovins', 15343)
+      // Tableau 2.1 (Abattages controles) is now derived from daily abattage entries
+      // instead of being entered directly into inventory_grid_values.
       db.prepare(
-        `INSERT INTO inventory_grid_values (tableId, month, departmentId, columnKey, value) VALUES (?,?,?,?,?)`
-      ).run('T2_1', '2026-01', dept.id, 'bovins_abattus', 152)
+        `INSERT INTO daily_entries (date, species, pointId, category, nombre, direction, place, createdBy)
+         VALUES (?,?,?,?,?,?,?,?)`
+      ).run('2026-01-15', 'Bovins', point.id, 'abattage', 152, 'entree', null, admin.id)
       db.prepare(`INSERT INTO inventory_log_entries (tableId, month, data, createdBy) VALUES (?,?,?,?)`).run(
         'T3_1',
         '2026-01',
@@ -61,18 +67,38 @@ app.whenReady().then(() => {
       await dailyReportToDocx({ date, entries: dailyEntries }, path.join(outDir, 'daily.docx'))
       console.log('DAILY OK', fs.statSync(path.join(outDir, 'daily.pdf')).size, fs.statSync(path.join(outDir, 'daily.docx')).size)
 
-      const weeklyRows = db
-        .prepare(`SELECT * FROM weekly_movements WHERE weekStart = ? AND weekEnd = ?`)
-        .all('2026-04-06', '2026-04-12')
-      const weeklyHtml = await buildWeeklyReportHtml({ weekStart: '2026-04-06', weekEnd: '2026-04-12', rows: weeklyRows })
+      const weekStart = '2026-04-06'
+      const weekEnd = '2026-04-12'
+      const weeklyDailyRows = db
+        .prepare(
+          `SELECT de.*, cp.name AS pointName FROM daily_entries de
+           JOIN collection_points cp ON cp.id = de.pointId
+           WHERE de.date >= ? AND de.date <= ? AND de.place IS NOT NULL AND de.place != ''`
+        )
+        .all(weekStart, weekEnd)
+      const weeklyRows = weeklyDailyRows.map((r) => ({
+        weekStart,
+        weekEnd,
+        marketName: r.pointName,
+        species: r.species,
+        direction: r.direction === 'sortie' ? 'sortie' : 'entree',
+        place: r.place,
+        effectif: r.nombre,
+        prixMoyen: r.prix
+      }))
+      const weeklyHtml = await buildWeeklyReportHtml({ weekStart, weekEnd, rows: weeklyRows })
       await htmlToPdfFile(weeklyHtml, path.join(outDir, 'weekly.pdf'))
-      await weeklyReportToDocx({ weekStart: '2026-04-06', weekEnd: '2026-04-12', rows: weeklyRows }, path.join(outDir, 'weekly.docx'))
+      await weeklyReportToDocx({ weekStart, weekEnd, rows: weeklyRows }, path.join(outDir, 'weekly.docx'))
       console.log('WEEKLY OK', fs.statSync(path.join(outDir, 'weekly.pdf')).size, fs.statSync(path.join(outDir, 'weekly.docx')).size)
 
+      const { computeAbattageGrid } = require('../src/main/reports/abattageAggregation')
       const departments = db.prepare('SELECT * FROM departments ORDER BY name').all()
       const gridValues = new Map()
-      const gridRows = db.prepare('SELECT * FROM inventory_grid_values WHERE month = ?').all('2026-01')
+      const gridRows = db
+        .prepare('SELECT * FROM inventory_grid_values WHERE month = ? AND tableId != ?')
+        .all('2026-01', 'T2_1')
       for (const r of gridRows) gridValues.set(`${r.tableId}|${r.departmentId}|${r.columnKey}`, r.value)
+      for (const r of computeAbattageGrid(db, '2026-01')) gridValues.set(`T2_1|${r.departmentId}|${r.columnKey}`, r.value)
       const logEntries = new Map()
       const logRows = db.prepare('SELECT * FROM inventory_log_entries WHERE tableId = ? AND month = ?').all('T3_1', '2026-01')
       logEntries.set('T3_1', logRows.map((r) => JSON.parse(r.data)))

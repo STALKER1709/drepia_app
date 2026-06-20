@@ -94,25 +94,21 @@ app.whenReady().then(async () => {
     await sleep(500)
     await shot(win, '/tmp/ui-03-daily-entry.png')
 
-    await clickNavByText(win, 'Saisie hebdomadaire')
-    await sleep(500)
-    await shot(win, '/tmp/ui-04-weekly-entry.png')
-
     await clickNavByText(win, 'Saisie mensuelle (Inventaire)')
     await sleep(500)
-    await shot(win, '/tmp/ui-05-monthly-entry.png')
+    await shot(win, '/tmp/ui-04-monthly-entry.png')
 
     await clickNavByText(win, 'Generation des rapports')
     await sleep(500)
-    await shot(win, '/tmp/ui-06-reports.png')
+    await shot(win, '/tmp/ui-05-reports.png')
 
     await clickButtonByText(win, 'Generer le rapport')
     await sleep(1500)
-    await shot(win, '/tmp/ui-07-report-generated.png')
+    await shot(win, '/tmp/ui-06-report-generated.png')
 
     await clickNavByText(win, 'Utilisateurs')
     await sleep(500)
-    await shot(win, '/tmp/ui-08-users.png')
+    await shot(win, '/tmp/ui-07-users.png')
 
     console.log('UI_CHECK_SUCCESS')
     app.exit(0)

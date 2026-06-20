@@ -19,6 +19,8 @@ interface DailyRow {
   ecart: number | null
   tendance: string | null
   prix: string | null
+  direction: string
+  place: string | null
 }
 
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -36,7 +38,9 @@ export default function DailyEntry(): JSX.Element {
     quantiteT: '',
     ecart: '',
     tendance: 'STABLE',
-    prix: ''
+    prix: '',
+    direction: 'entree',
+    place: ''
   })
 
   useEffect(() => {
@@ -66,9 +70,11 @@ export default function DailyEntry(): JSX.Element {
       ecart: form.ecart ? Number(form.ecart) : null,
       tendance: form.tendance,
       prix: form.prix || null,
+      direction: form.direction,
+      place: form.place || null,
       createdBy: user?.id
     })
-    setForm((f) => ({ ...f, species: '', nombre: '', quantiteT: '', ecart: '', prix: '' }))
+    setForm((f) => ({ ...f, species: '', nombre: '', quantiteT: '', ecart: '', prix: '', place: '' }))
     refresh()
   }
 
@@ -137,6 +143,21 @@ export default function DailyEntry(): JSX.Element {
             <label>Prix</label>
             <input value={form.prix} onChange={(e) => setForm({ ...form, prix: e.target.value })} placeholder="2500 Fcfa/kg" />
           </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Sens</label>
+            <select value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}>
+              <option value="entree">Entree</option>
+              <option value="sortie">Sortie</option>
+            </select>
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>{form.direction === 'entree' ? 'Provenance' : 'Destination'}</label>
+            <input
+              value={form.place}
+              onChange={(e) => setForm({ ...form, place: e.target.value })}
+              placeholder="Optionnel - utilise pour le rapport hebdomadaire"
+            />
+          </div>
           <button onClick={addRow}>Ajouter</button>
         </div>
       </div>
@@ -152,6 +173,8 @@ export default function DailyEntry(): JSX.Element {
             <th>Ecart</th>
             <th>Tendance</th>
             <th>Prix</th>
+            <th>Sens</th>
+            <th>Lieu</th>
             <th></th>
           </tr>
         </thead>
@@ -166,6 +189,8 @@ export default function DailyEntry(): JSX.Element {
               <td>{r.ecart ?? '-'}</td>
               <td>{r.tendance ?? '-'}</td>
               <td>{r.prix ?? '-'}</td>
+              <td>{r.direction === 'sortie' ? 'Sortie' : 'Entree'}</td>
+              <td>{r.place ?? '-'}</td>
               <td>
                 <button className="secondary" onClick={() => removeRow(r.id)}>
                   Supprimer
@@ -175,7 +200,7 @@ export default function DailyEntry(): JSX.Element {
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={9}>Aucune donnee saisie pour cette date.</td>
+              <td colSpan={11}>Aucune donnee saisie pour cette date.</td>
             </tr>
           )}
         </tbody>

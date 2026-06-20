@@ -3,13 +3,14 @@ import fs from 'fs'
 import path from 'path'
 import { getDb } from './db'
 import * as auth from './auth'
-import { Role } from '@shared/types'
+import { Role, WeeklyMovementRow } from '@shared/types'
 import { INVENTORY_TABLES } from '@shared/inventoryTables'
 import { buildDailyReportHtml } from './reports/dailyReport'
 import { buildWeeklyReportHtml } from './reports/weeklyReport'
 import { buildMonthlyReportHtml, MonthlyReportData } from './reports/monthlyReport'
 import { htmlToPdfFile } from './reports/pdfExport'
 import { dailyReportToDocx, weeklyReportToDocx, monthlyReportToDocx } from './reports/docxExport'
+import { computeAbattageGrid } from './reports/abattageAggregation'
 
 function reportsDir(): string {
   const dir = path.join(app.getPath('documents'), 'DREPIA_Rapports')
@@ -30,8 +31,10 @@ export function registerIpcHandlers(): void {
   // ---- Reference data ----
   ipcMain.handle('ref:departments', () => getDb().prepare('SELECT * FROM departments ORDER BY name').all())
   ipcMain.handle('ref:points', () => getDb().prepare('SELECT * FROM collection_points ORDER BY name').all())
-  ipcMain.handle('ref:addPoint', (_e, name: string, type: string) =>
-    getDb().prepare('INSERT INTO collection_points (name, type) VALUES (?,?)').run(name, type)
+  ipcMain.handle('ref:addPoint', (_e, name: string, type: string, departmentId: number) =>
+    getDb()
+      .prepare('INSERT INTO collection_points (name, type, departmentId) VALUES (?,?,?)')
+      .run(name, type, departmentId)
   )
   ipcMain.handle('ref:inventoryTableDefs', () => INVENTORY_TABLES)
 
@@ -58,13 +61,15 @@ export function registerIpcHandlers(): void {
         ecart: number | null
         tendance: string | null
         prix: string | null
+        direction: string
+        place: string | null
         createdBy: number
       }
     ) =>
       getDb()
         .prepare(
-          `INSERT INTO daily_entries (date, species, pointId, category, nombre, quantiteT, ecart, tendance, prix, createdBy)
-           VALUES (?,?,?,?,?,?,?,?,?,?)`
+          `INSERT INTO daily_entries (date, species, pointId, category, nombre, quantiteT, ecart, tendance, prix, direction, place, createdBy)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
         )
         .run(
           entry.date,
@@ -76,56 +81,18 @@ export function registerIpcHandlers(): void {
           entry.ecart,
           entry.tendance,
           entry.prix,
+          entry.direction || 'entree',
+          entry.place,
           entry.createdBy
         )
   )
   ipcMain.handle('daily:delete', (_e, id: number) => getDb().prepare('DELETE FROM daily_entries WHERE id = ?').run(id))
 
-  // ---- Weekly movements ----
-  ipcMain.handle('weekly:list', (_e, weekStart: string, weekEnd: string) =>
-    getDb()
-      .prepare('SELECT * FROM weekly_movements WHERE weekStart = ? AND weekEnd = ? ORDER BY id')
-      .all(weekStart, weekEnd)
-  )
-  ipcMain.handle(
-    'weekly:create',
-    (
-      _e,
-      entry: {
-        weekStart: string
-        weekEnd: string
-        marketName: string
-        species: string
-        direction: string
-        place: string
-        effectif: number
-        prixMoyen: string | null
-        createdBy: number
-      }
-    ) =>
-      getDb()
-        .prepare(
-          `INSERT INTO weekly_movements (weekStart, weekEnd, marketName, species, direction, place, effectif, prixMoyen, createdBy)
-           VALUES (?,?,?,?,?,?,?,?,?)`
-        )
-        .run(
-          entry.weekStart,
-          entry.weekEnd,
-          entry.marketName,
-          entry.species,
-          entry.direction,
-          entry.place,
-          entry.effectif,
-          entry.prixMoyen,
-          entry.createdBy
-        )
-  )
-  ipcMain.handle('weekly:delete', (_e, id: number) => getDb().prepare('DELETE FROM weekly_movements WHERE id = ?').run(id))
-
   // ---- Monthly inventory ----
   ipcMain.handle('inventory:gridGet', (_e, tableId: string, month: string) =>
     getDb().prepare('SELECT * FROM inventory_grid_values WHERE tableId = ? AND month = ?').all(tableId, month)
   )
+  ipcMain.handle('inventory:t2_1Get', (_e, month: string) => computeAbattageGrid(getDb(), month))
   ipcMain.handle(
     'inventory:gridSet',
     (_e, tableId: string, month: string, departmentId: number, columnKey: string, value: number) =>
@@ -175,13 +142,35 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('report:generateWeekly', async (_e, weekStart: string, weekEnd: string, createdBy: number) => {
-    const rows = getDb()
-      .prepare('SELECT * FROM weekly_movements WHERE weekStart = ? AND weekEnd = ? ORDER BY id')
-      .all(weekStart, weekEnd) as never[]
-    const html = await buildWeeklyReportHtml({ weekStart, weekEnd, rows: rows as never })
+    const dailyRows = getDb()
+      .prepare(
+        `SELECT de.*, cp.name AS pointName FROM daily_entries de
+         JOIN collection_points cp ON cp.id = de.pointId
+         WHERE de.date >= ? AND de.date <= ? AND de.place IS NOT NULL AND de.place != ''
+         ORDER BY de.id`
+      )
+      .all(weekStart, weekEnd) as Array<{
+      pointName: string
+      species: string
+      direction: string
+      place: string
+      nombre: number
+      prix: string | null
+    }>
+    const rows: WeeklyMovementRow[] = dailyRows.map((r) => ({
+      weekStart,
+      weekEnd,
+      marketName: r.pointName,
+      species: r.species,
+      direction: r.direction === 'sortie' ? 'sortie' : 'entree',
+      place: r.place,
+      effectif: r.nombre,
+      prixMoyen: r.prix
+    }))
+    const html = await buildWeeklyReportHtml({ weekStart, weekEnd, rows })
     const base = path.join(reportsDir(), `hebdomadaire_${weekStart}_${weekEnd}`)
     await htmlToPdfFile(html, `${base}.pdf`)
-    await weeklyReportToDocx({ weekStart, weekEnd, rows: rows as never }, `${base}.docx`)
+    await weeklyReportToDocx({ weekStart, weekEnd, rows }, `${base}.docx`)
     const info = getDb()
       .prepare('INSERT INTO reports (type, periodLabel, createdBy, pdfPath, docxPath) VALUES (?,?,?,?,?)')
       .run('hebdomadaire', `${weekStart} au ${weekEnd}`, createdBy, `${base}.pdf`, `${base}.docx`)
@@ -195,10 +184,12 @@ export function registerIpcHandlers(): void {
       name: string
     }>
     const gridValues = new Map<string, number>()
+    // T2_1 ("Abattages controles") is derived from daily entries, not stored manually.
     const gridRows = db
-      .prepare('SELECT * FROM inventory_grid_values WHERE month = ?')
-      .all(month) as Array<{ tableId: string; departmentId: number; columnKey: string; value: number }>
+      .prepare('SELECT * FROM inventory_grid_values WHERE month = ? AND tableId != ?')
+      .all(month, 'T2_1') as Array<{ tableId: string; departmentId: number; columnKey: string; value: number }>
     for (const r of gridRows) gridValues.set(`${r.tableId}|${r.departmentId}|${r.columnKey}`, r.value)
+    for (const r of computeAbattageGrid(db, month)) gridValues.set(`T2_1|${r.departmentId}|${r.columnKey}`, r.value)
 
     const logEntries = new Map<string, Array<Record<string, unknown>>>()
     for (const t of INVENTORY_TABLES) {

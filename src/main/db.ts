@@ -23,6 +23,11 @@ export function getDb(): Database.Database {
   return db
 }
 
+function columnExists(db: Database.Database, table: string, column: string): boolean {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  return cols.some((c) => c.name === column)
+}
+
 function migrate(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -43,7 +48,8 @@ function migrate(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS collection_points (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      type TEXT NOT NULL DEFAULT 'marche'
+      type TEXT NOT NULL DEFAULT 'marche',
+      departmentId INTEGER REFERENCES departments(id)
     );
 
     CREATE TABLE IF NOT EXISTS daily_entries (
@@ -57,23 +63,13 @@ function migrate(db: Database.Database): void {
       ecart REAL,
       tendance TEXT,
       prix TEXT,
+      direction TEXT NOT NULL DEFAULT 'entree',
+      place TEXT,
       createdBy INTEGER REFERENCES users(id),
       createdAt TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS weekly_movements (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      weekStart TEXT NOT NULL,
-      weekEnd TEXT NOT NULL,
-      marketName TEXT NOT NULL,
-      species TEXT NOT NULL,
-      direction TEXT NOT NULL CHECK(direction IN ('entree','sortie')),
-      place TEXT NOT NULL,
-      effectif REAL NOT NULL DEFAULT 0,
-      prixMoyen TEXT,
-      createdBy INTEGER REFERENCES users(id),
-      createdAt TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+    DROP TABLE IF EXISTS weekly_movements;
 
     CREATE TABLE IF NOT EXISTS inventory_grid_values (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,6 +100,16 @@ function migrate(db: Database.Database): void {
       docxPath TEXT
     );
   `)
+
+  if (!columnExists(db, 'collection_points', 'departmentId')) {
+    db.exec('ALTER TABLE collection_points ADD COLUMN departmentId INTEGER REFERENCES departments(id)')
+  }
+  if (!columnExists(db, 'daily_entries', 'direction')) {
+    db.exec("ALTER TABLE daily_entries ADD COLUMN direction TEXT NOT NULL DEFAULT 'entree'")
+  }
+  if (!columnExists(db, 'daily_entries', 'place')) {
+    db.exec('ALTER TABLE daily_entries ADD COLUMN place TEXT')
+  }
 }
 
 function seed(db: Database.Database): void {
@@ -123,9 +129,18 @@ function seed(db: Database.Database): void {
     for (const d of DEPARTMENTS) insert.run(d)
   }
 
+  const mfoundi = db.prepare("SELECT id FROM departments WHERE name = 'MFOUNDI'").get() as
+    | { id: number }
+    | undefined
+
+  // Backfill departmentId for points created before that column existed.
+  if (mfoundi) {
+    db.prepare('UPDATE collection_points SET departmentId = ? WHERE departmentId IS NULL').run(mfoundi.id)
+  }
+
   const pointCount = db.prepare('SELECT COUNT(*) AS c FROM collection_points').get() as { c: number }
-  if (pointCount.c === 0) {
-    const insert = db.prepare('INSERT INTO collection_points (name, type) VALUES (?,?)')
+  if (pointCount.c === 0 && mfoundi) {
+    const insert = db.prepare('INSERT INTO collection_points (name, type, departmentId) VALUES (?,?,?)')
     const defaultPoints: Array<[string, string]> = [
       ['Abattoir (SODEPA)', 'abattoir'],
       ['Marche Nkol-ewoe (Mvog-Ada)', 'marche'],
@@ -133,6 +148,6 @@ function seed(db: Database.Database): void {
       ['Marche Etoudi', 'marche'],
       ['Marche Mendong', 'marche']
     ]
-    for (const [name, type] of defaultPoints) insert.run(name, type)
+    for (const [name, type] of defaultPoints) insert.run(name, type, mfoundi.id)
   }
 }
