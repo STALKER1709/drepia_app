@@ -16,6 +16,9 @@ const api = {
       ipcRenderer.invoke('ref:addPoint', name, type, departmentId),
     inventoryTableDefs: () => ipcRenderer.invoke('ref:inventoryTableDefs')
   },
+  dashboard: {
+    summary: () => ipcRenderer.invoke('dashboard:summary')
+  },
   daily: {
     list: (date: string) => ipcRenderer.invoke('daily:list', date),
     create: (entry: unknown) => ipcRenderer.invoke('daily:create', entry),

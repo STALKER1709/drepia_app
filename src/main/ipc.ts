@@ -10,7 +10,7 @@ import { buildWeeklyReportHtml } from './reports/weeklyReport'
 import { buildMonthlyReportHtml, MonthlyReportData } from './reports/monthlyReport'
 import { htmlToPdfFile } from './reports/pdfExport'
 import { dailyReportToDocx, weeklyReportToDocx, monthlyReportToDocx } from './reports/docxExport'
-import { computeAbattageGrid } from './reports/abattageAggregation'
+import { computeAbattageGrid, speciesToAbattageColumn, ABATTAGE_COLUMN_LABELS } from './reports/abattageAggregation'
 
 function reportsDir(): string {
   const dir = path.join(app.getPath('documents'), 'DREPIA_Rapports')
@@ -37,6 +37,46 @@ export function registerIpcHandlers(): void {
       .run(name, type, departmentId)
   )
   ipcMain.handle('ref:inventoryTableDefs', () => INVENTORY_TABLES)
+
+  // ---- Dashboard ----
+  ipcMain.handle('dashboard:summary', () => {
+    const db = getDb()
+
+    const dailyAbattages = db
+      .prepare(
+        `SELECT date, SUM(nombre) AS total FROM daily_entries
+         WHERE category = 'abattage' AND date >= date('now', '-6 days')
+         GROUP BY date ORDER BY date`
+      )
+      .all() as Array<{ date: string; total: number }>
+
+    const speciesRows = db
+      .prepare(
+        `SELECT species, SUM(nombre) AS total FROM daily_entries
+         WHERE category = 'abattage' AND date >= date('now', '-29 days')
+         GROUP BY species`
+      )
+      .all() as Array<{ species: string; total: number }>
+    const speciesTotals = new Map<string, number>()
+    for (const r of speciesRows) {
+      const key = speciesToAbattageColumn(r.species) || 'autres'
+      speciesTotals.set(key, (speciesTotals.get(key) || 0) + r.total)
+    }
+    const speciesBreakdown = Array.from(speciesTotals.entries()).map(([key, total]) => ({
+      species: ABATTAGE_COLUMN_LABELS[key] || key,
+      total
+    }))
+
+    const weeklyMovements = db
+      .prepare(
+        `SELECT direction, SUM(nombre) AS total FROM daily_entries
+         WHERE place IS NOT NULL AND place != '' AND date >= date('now', '-6 days')
+         GROUP BY direction`
+      )
+      .all() as Array<{ direction: string; total: number }>
+
+    return { dailyAbattages, speciesBreakdown, weeklyMovements }
+  })
 
   // ---- Daily entries ----
   ipcMain.handle('daily:list', (_e, date: string) =>

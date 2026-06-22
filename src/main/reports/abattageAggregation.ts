@@ -20,6 +20,15 @@ export function speciesToAbattageColumn(species: string): string | null {
   return match ? match.key : null
 }
 
+export const ABATTAGE_COLUMN_LABELS: Record<string, string> = {
+  bovins_abattus: 'Bovins',
+  ovins_abattus: 'Ovins',
+  caprins_abattus: 'Caprins',
+  porcins_abattus: 'Porcins',
+  volaille_abattue: 'Volaille',
+  autres: 'Autres'
+}
+
 export interface AbattageGridRow {
   departmentId: number
   columnKey: string
