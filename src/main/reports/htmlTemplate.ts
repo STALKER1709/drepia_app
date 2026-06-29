@@ -1,3 +1,19 @@
+import fs from 'fs'
+import path from 'path'
+import { app } from 'electron'
+
+function logoDataUri(): string {
+  const candidates = app.isPackaged
+    ? [path.join(process.resourcesPath, 'minepia-logo.png')]
+    : [
+        path.join(__dirname, '..', '..', 'resources', 'minepia-logo.png'),
+        path.join(__dirname, '..', '..', '..', 'resources', 'minepia-logo.png')
+      ]
+  const logoPath = candidates.find((p) => fs.existsSync(p)) ?? candidates[0]
+  const base64 = fs.readFileSync(logoPath).toString('base64')
+  return `data:image/png;base64,${base64}`
+}
+
 export function pageShell(title: string, bodyHtml: string): string {
   return `<!doctype html>
 <html lang="fr">
@@ -7,8 +23,9 @@ export function pageShell(title: string, bodyHtml: string): string {
 <style>
   @page { size: A4; margin: 18mm 16mm; }
   body { font-family: 'Times New Roman', Georgia, serif; font-size: 12px; color: #111; }
-  .letterhead { display: flex; justify-content: space-between; font-size: 10px; text-align: center; margin-bottom: 16px; }
-  .letterhead div { width: 45%; white-space: pre-line; }
+  .letterhead { display: flex; justify-content: space-between; align-items: center; font-size: 10px; text-align: center; margin-bottom: 16px; }
+  .letterhead div { width: 40%; white-space: pre-line; }
+  .letterhead img { width: 70px; height: 70px; object-fit: contain; }
   h1 { font-size: 16px; text-align: center; text-transform: uppercase; margin: 18px 0; }
   h2 { font-size: 14px; border-bottom: 1px solid #1f6f3d; padding-bottom: 2px; margin-top: 22px; color: #1f6f3d; }
   h3 { font-size: 13px; margin-top: 14px; }
@@ -34,6 +51,7 @@ DELEGATION REGIONALE DE L'ELEVAGE,
 DES PECHES ET DES INDUSTRIES ANIMALES
 ------
 SERVICE DES ENQUETES ET DES STATISTIQUES</div>
+  <img src="${logoDataUri()}" alt="Logo MINEPIA" />
   <div>REPUBLIC OF CAMEROON
 Peace-Work-Fatherland
 ------

@@ -5,6 +5,8 @@ directories:
   buildResources: resources
 files:
   - out/**/*
+extraResources:
+  - minepia-logo.png
 asarUnpack:
   - '**/*.node'
 win:

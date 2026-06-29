@@ -12,6 +12,8 @@ import {
   WidthType
 } from 'docx'
 import fs from 'fs'
+import path from 'path'
+import { app } from 'electron'
 import { DailyReportData } from './dailyReport'
 import { WeeklyReportData } from './weeklyReport'
 import { buildWeeklySections } from './weeklyText'
@@ -20,8 +22,23 @@ import { INVENTORY_TABLES, SECTIONS } from '@shared/inventoryTables'
 import { GridTableDef, LogTableDef } from '@shared/types'
 import { renderChartPng } from './charts'
 
+function logoBuffer(): Buffer {
+  const candidates = app.isPackaged
+    ? [path.join(process.resourcesPath, 'minepia-logo.png')]
+    : [
+        path.join(__dirname, '..', '..', 'resources', 'minepia-logo.png'),
+        path.join(__dirname, '..', '..', '..', 'resources', 'minepia-logo.png')
+      ]
+  const logoPath = candidates.find((p) => fs.existsSync(p)) ?? candidates[0]
+  return fs.readFileSync(logoPath)
+}
+
 function letterheadParagraphs(): Paragraph[] {
   return [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new ImageRun({ data: logoBuffer(), transformation: { width: 70, height: 70 } })]
+    }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
       children: [
