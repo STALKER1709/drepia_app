@@ -6,7 +6,8 @@ directories:
 files:
   - out/**/*
 extraResources:
-  - minepia-logo.png
+  - from: resources/minepia-logo.png
+    to: minepia-logo.png
 asarUnpack:
   - '**/*.node'
 win:
