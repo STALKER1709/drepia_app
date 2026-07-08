@@ -24,6 +24,11 @@ const api = {
     create: (entry: unknown) => ipcRenderer.invoke('daily:create', entry),
     delete: (id: number) => ipcRenderer.invoke('daily:delete', id)
   },
+  weekly: {
+    list: (weekStart: string, weekEnd: string) => ipcRenderer.invoke('weekly:list', weekStart, weekEnd),
+    create: (entry: unknown) => ipcRenderer.invoke('weekly:create', entry),
+    delete: (id: number) => ipcRenderer.invoke('weekly:delete', id)
+  },
   inventory: {
     gridGet: (tableId: string, month: string) => ipcRenderer.invoke('inventory:gridGet', tableId, month),
     gridSet: (tableId: string, month: string, departmentId: number, columnKey: string, value: number) =>

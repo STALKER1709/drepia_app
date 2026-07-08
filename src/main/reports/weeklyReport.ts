@@ -20,9 +20,14 @@ function movementTable(section: { entreeRows: WeeklyMovementRow[]; sortieRows: W
         `<td class="label">${s?.place ?? ''}</td><td>${s?.effectif ?? ''}</td></tr>`
     )
   }
+  const totalEntree = section.entreeRows.reduce((a, r) => a + (r.effectif || 0), 0)
+  const totalSortie = section.sortieRows.reduce((a, r) => a + (r.effectif || 0), 0)
   return `<table>
     <thead><tr><th class="label">Provenance</th><th>Effectif</th><th class="label">Destination</th><th>Effectif</th></tr></thead>
-    <tbody>${rowsHtml.join('')}</tbody>
+    <tbody>${rowsHtml.join('')}
+    <tr><td class="label"><strong>TOTAL</strong></td><td><strong>${totalEntree}</strong></td>
+        <td class="label"><strong>TOTAL</strong></td><td><strong>${totalSortie}</strong></td></tr>
+    </tbody>
   </table>`
 }
 
@@ -40,6 +45,7 @@ export async function buildWeeklyReportHtml(data: WeeklyReportData): Promise<str
     parts.push(`
       <h3>${counter}- Mouvements des ${sec.species} au marche de ${sec.marketName}</h3>
       ${movementTable(sec)}
+      ${sec.prixMoyen ? `<p><strong>Prix moyen :</strong> ${sec.prixMoyen}</p>` : ''}
       <p class="analysis">${sec.analysis}</p>
       ${imgTag(png.toString('base64'), `${sec.species} ${sec.marketName}`)}
     `)

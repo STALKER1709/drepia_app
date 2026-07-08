@@ -4,6 +4,7 @@ import Layout from './Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import DailyEntry from './pages/DailyEntry'
+import WeeklyEntry from './pages/WeeklyEntry'
 import MonthlyEntry from './pages/MonthlyEntry'
 import Reports from './pages/Reports'
 import UsersAdmin from './pages/UsersAdmin'
@@ -33,6 +34,14 @@ function AppRoutes(): JSX.Element {
           element={
             <RequireAuth roles={['admin', 'agent', 'superviseur']}>
               <DailyEntry />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="saisie/hebdomadaire"
+          element={
+            <RequireAuth roles={['admin', 'agent', 'superviseur']}>
+              <WeeklyEntry />
             </RequireAuth>
           }
         />

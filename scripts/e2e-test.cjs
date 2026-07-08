@@ -22,16 +22,28 @@ app.whenReady().then(() => {
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
       ).run(date, 'Bovine', point.id, 'abattage', 124, 24.18, -16.77, 'BAISSE', '2500 Fcfa', 'entree', null, admin.id)
 
-      // Weekly market movements are now captured as daily entries (direction + place)
-      // instead of a separate weekly entry, then rolled up for the weekly report.
+      // Some daily "porcins & poulet" / "petits ruminants" entries to exercise
+      // the restructured daily report sections.
       db.prepare(
-        `INSERT INTO daily_entries (date, species, pointId, category, nombre, direction, place, createdBy)
-         VALUES (?,?,?,?,?,?,?,?)`
-      ).run('2026-04-08', 'bovins', etoudiPoint.id, 'sur_pied', 1300, 'entree', 'ADAMAOUA', admin.id)
+        `INSERT INTO daily_entries (date, species, pointId, category, nombre, ecart, tendance, prix, direction, createdBy)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
+      ).run(date, 'Porcins', point.id, 'porc_volaille', 351, 25, 'HAUSSE', '90 000 Fcfa', 'entree', admin.id)
       db.prepare(
-        `INSERT INTO daily_entries (date, species, pointId, category, nombre, direction, place, createdBy)
-         VALUES (?,?,?,?,?,?,?,?)`
-      ).run('2026-04-09', 'bovins', etoudiPoint.id, 'sur_pied', 120, 'sortie', 'KYE-OSI', admin.id)
+        `INSERT INTO daily_entries (date, species, pointId, category, nombre, ecart, tendance, prix, direction, createdBy)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
+      ).run(date, 'Ovins', point.id, 'petit_ruminant', 200, -150, 'BAISSE', '80 000 Fcfa', 'entree', admin.id)
+
+      // Weekly market movements are now saved independently in weekly_movements.
+      const weekStartSeed = '2026-04-06'
+      const weekEndSeed = '2026-04-12'
+      db.prepare(
+        `INSERT INTO weekly_movements (weekStart, weekEnd, pointId, species, direction, place, effectif, prixMoyen, createdBy)
+         VALUES (?,?,?,?,?,?,?,?,?)`
+      ).run(weekStartSeed, weekEndSeed, etoudiPoint.id, 'Bovins', 'entree', 'ADAMAOUA', 1300, '400 000 Fcfa/tete', admin.id)
+      db.prepare(
+        `INSERT INTO weekly_movements (weekStart, weekEnd, pointId, species, direction, place, effectif, prixMoyen, createdBy)
+         VALUES (?,?,?,?,?,?,?,?,?)`
+      ).run(weekStartSeed, weekEndSeed, etoudiPoint.id, 'Bovins', 'sortie', 'KYE-OSI', 120, null, admin.id)
 
       db.prepare(
         `INSERT INTO inventory_grid_values (tableId, month, departmentId, columnKey, value) VALUES (?,?,?,?,?)`
@@ -69,22 +81,23 @@ app.whenReady().then(() => {
 
       const weekStart = '2026-04-06'
       const weekEnd = '2026-04-12'
-      const weeklyDailyRows = db
+      const weeklySavedRows = db
         .prepare(
-          `SELECT de.*, cp.name AS pointName FROM daily_entries de
-           JOIN collection_points cp ON cp.id = de.pointId
-           WHERE de.date >= ? AND de.date <= ? AND de.place IS NOT NULL AND de.place != ''`
+          `SELECT wm.*, cp.name AS marketName FROM weekly_movements wm
+           JOIN collection_points cp ON cp.id = wm.pointId
+           WHERE wm.weekStart = ? AND wm.weekEnd = ?`
         )
         .all(weekStart, weekEnd)
-      const weeklyRows = weeklyDailyRows.map((r) => ({
+      const weeklyRows = weeklySavedRows.map((r) => ({
         weekStart,
         weekEnd,
-        marketName: r.pointName,
+        pointId: r.pointId,
+        marketName: r.marketName,
         species: r.species,
         direction: r.direction === 'sortie' ? 'sortie' : 'entree',
         place: r.place,
-        effectif: r.nombre,
-        prixMoyen: r.prix
+        effectif: r.effectif,
+        prixMoyen: r.prixMoyen
       }))
       const weeklyHtml = await buildWeeklyReportHtml({ weekStart, weekEnd, rows: weeklyRows })
       await htmlToPdfFile(weeklyHtml, path.join(outDir, 'weekly.pdf'))

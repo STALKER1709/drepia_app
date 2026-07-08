@@ -69,7 +69,19 @@ function migrate(db: Database.Database): void {
       createdAt TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    DROP TABLE IF EXISTS weekly_movements;
+    CREATE TABLE IF NOT EXISTS weekly_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      weekStart TEXT NOT NULL,
+      weekEnd TEXT NOT NULL,
+      pointId INTEGER NOT NULL REFERENCES collection_points(id),
+      species TEXT NOT NULL,
+      direction TEXT NOT NULL DEFAULT 'entree' CHECK(direction IN ('entree','sortie')),
+      place TEXT NOT NULL,
+      effectif REAL NOT NULL DEFAULT 0,
+      prixMoyen TEXT,
+      createdBy INTEGER REFERENCES users(id),
+      createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+    );
 
     CREATE TABLE IF NOT EXISTS inventory_grid_values (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

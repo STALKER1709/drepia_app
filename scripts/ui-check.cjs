@@ -94,6 +94,10 @@ app.whenReady().then(async () => {
     await sleep(500)
     await shot(win, '/tmp/ui-03-daily-entry.png')
 
+    await clickNavByText(win, 'Saisie hebdomadaire')
+    await sleep(500)
+    await shot(win, '/tmp/ui-03b-weekly-entry.png')
+
     await clickNavByText(win, 'Saisie mensuelle (Inventaire)')
     await sleep(500)
     await shot(win, '/tmp/ui-04-monthly-entry.png')

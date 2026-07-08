@@ -58,8 +58,10 @@ export async function buildDailyReportHtml(data: DailyReportData): Promise<strin
   const body = `
     <h1>Veille de disponibilite des animaux et leurs produits</h1>
     <p class="meta">Donnees du ${new Date(data.date).toLocaleDateString('fr-FR')}</p>
-    ${table(data.entries, 'abattage', 'Abattages controles')}
-    ${table(data.entries, 'sur_pied', 'Animaux sur pied (arrivee)')}
+    ${table(data.entries, 'abattage', 'I- Abattages controles')}
+    ${table(data.entries, 'sur_pied', 'II- Animaux sur pied (arrivee)')}
+    ${table(data.entries, 'porc_volaille', 'III- Porcins & Poulet de chair')}
+    ${table(data.entries, 'petit_ruminant', 'IV- Petits ruminants')}
     ${chartImgs.join('\n')}
     <p class="footer-note">NB : RAS = 0 (Zero).</p>
   `

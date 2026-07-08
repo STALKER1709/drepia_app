@@ -79,7 +79,13 @@ export interface WeeklyMarketSection {
   totalSortie: number
   entreeRows: WeeklyMovementRow[]
   sortieRows: WeeklyMovementRow[]
+  prixMoyen: string | null
   analysis: string
+}
+
+function firstPrice(rows: WeeklyMovementRow[]): string | null {
+  const withPrice = rows.find((r) => r.prixMoyen && r.prixMoyen.trim() !== '')
+  return withPrice?.prixMoyen ?? null
 }
 
 export function buildWeeklySections(rows: WeeklyMovementRow[]): WeeklyMarketSection[] {
@@ -90,6 +96,7 @@ export function buildWeeklySections(rows: WeeklyMovementRow[]): WeeklyMarketSect
     totalSortie: sum(g.sorties),
     entreeRows: g.entrees,
     sortieRows: g.sorties,
+    prixMoyen: firstPrice([...g.entrees, ...g.sorties]),
     analysis: generateAnalysisParagraph(g)
   }))
 }

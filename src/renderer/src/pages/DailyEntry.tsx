@@ -25,23 +25,55 @@ interface DailyRow {
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
+type Category = 'abattage' | 'sur_pied' | 'porc_volaille' | 'petit_ruminant'
+
+const SECTIONS: Array<{ key: Category; label: string; fields: Record<string, boolean>; species: string[] }> = [
+  {
+    key: 'abattage',
+    label: 'Abattages controles',
+    fields: { quantiteT: true, ecart: true, tendance: true, prix: true, place: false },
+    species: ['Bovine', 'Ovine', 'Caprine', 'Porcine', 'Volaille']
+  },
+  {
+    key: 'sur_pied',
+    label: 'Animaux sur pied (arrivee)',
+    fields: { quantiteT: false, ecart: true, tendance: true, prix: true, place: true },
+    species: ['Bovins', 'Ovins', 'Caprins', 'Porcins']
+  },
+  {
+    key: 'porc_volaille',
+    label: 'Porcins & Poulet de chair',
+    fields: { quantiteT: false, ecart: true, tendance: true, prix: true, place: false },
+    species: ['Porcins', 'Poulet de chair']
+  },
+  {
+    key: 'petit_ruminant',
+    label: 'Petits ruminants',
+    fields: { quantiteT: false, ecart: true, tendance: true, prix: true, place: false },
+    species: ['Ovins', 'Caprins']
+  }
+]
+
+const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(SECTIONS.map((s) => [s.key, s.label]))
+
 export default function DailyEntry(): JSX.Element {
   const { user } = useAuth()
   const [date, setDate] = useState(TODAY)
   const [points, setPoints] = useState<Point[]>([])
   const [rows, setRows] = useState<DailyRow[]>([])
+  const [active, setActive] = useState<Category>('abattage')
   const [form, setForm] = useState({
     species: '',
     pointId: 0,
-    category: 'abattage',
     nombre: '',
     quantiteT: '',
     ecart: '',
     tendance: 'STABLE',
     prix: '',
-    direction: 'entree',
     place: ''
   })
+
+  const section = SECTIONS.find((s) => s.key === active)!
 
   useEffect(() => {
     window.api.ref.points().then((p) => {
@@ -50,13 +82,14 @@ export default function DailyEntry(): JSX.Element {
     })
   }, [])
 
-  useEffect(() => {
-    window.api.daily.list(date).then((r) => setRows(r as DailyRow[]))
-  }, [date])
-
   const refresh = (): void => {
     window.api.daily.list(date).then((r) => setRows(r as DailyRow[]))
   }
+
+  useEffect(() => {
+    refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date])
 
   const addRow = async (): Promise<void> => {
     if (!form.species || !form.pointId || !form.nombre) return
@@ -64,14 +97,14 @@ export default function DailyEntry(): JSX.Element {
       date,
       species: form.species,
       pointId: form.pointId,
-      category: form.category,
+      category: active,
       nombre: Number(form.nombre),
-      quantiteT: form.quantiteT ? Number(form.quantiteT) : null,
-      ecart: form.ecart ? Number(form.ecart) : null,
-      tendance: form.tendance,
+      quantiteT: section.fields.quantiteT && form.quantiteT ? Number(form.quantiteT) : null,
+      ecart: section.fields.ecart && form.ecart ? Number(form.ecart) : null,
+      tendance: section.fields.tendance ? form.tendance : null,
       prix: form.prix || null,
-      direction: form.direction,
-      place: form.place || null,
+      direction: 'entree',
+      place: section.fields.place ? form.place || null : null,
       createdBy: user?.id
     })
     setForm((f) => ({ ...f, species: '', nombre: '', quantiteT: '', ecart: '', prix: '', place: '' }))
@@ -82,6 +115,8 @@ export default function DailyEntry(): JSX.Element {
     await window.api.daily.delete(id)
     refresh()
   }
+
+  const sectionRows = rows.filter((r) => r.category === active)
 
   return (
     <div>
@@ -95,19 +130,39 @@ export default function DailyEntry(): JSX.Element {
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
         </div>
+      </div>
 
+      <div className="tabs" style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {SECTIONS.map((s) => (
+          <button
+            key={s.key}
+            className={active === s.key ? '' : 'secondary'}
+            onClick={() => {
+              setActive(s.key)
+              setForm((f) => ({ ...f, species: '' }))
+            }}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="card">
+        <h3>{section.label}</h3>
         <div className="toolbar">
           <div className="field" style={{ marginBottom: 0 }}>
-            <label>Categorie</label>
-            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-              <option value="abattage">Abattage controle</option>
-              <option value="sur_pied">Animal sur pied (arrivee)</option>
-              <option value="autre">Autre</option>
-            </select>
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
             <label>Espece</label>
-            <input value={form.species} onChange={(e) => setForm({ ...form, species: e.target.value })} placeholder="Bovine, Porcine..." />
+            <input
+              list={`species-${active}`}
+              value={form.species}
+              onChange={(e) => setForm({ ...form, species: e.target.value })}
+              placeholder="Choisir ou saisir"
+            />
+            <datalist id={`species-${active}`}>
+              {section.species.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
             <label>Point de collecte</label>
@@ -123,41 +178,40 @@ export default function DailyEntry(): JSX.Element {
             <label>Nombre (tetes)</label>
             <input type="number" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
           </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Quantite (T)</label>
-            <input type="number" value={form.quantiteT} onChange={(e) => setForm({ ...form, quantiteT: e.target.value })} />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Ecart / jour precedent</label>
-            <input type="number" value={form.ecart} onChange={(e) => setForm({ ...form, ecart: e.target.value })} />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Tendance</label>
-            <select value={form.tendance} onChange={(e) => setForm({ ...form, tendance: e.target.value })}>
-              <option value="HAUSSE">Hausse</option>
-              <option value="BAISSE">Baisse</option>
-              <option value="STABLE">Stable</option>
-            </select>
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Prix</label>
-            <input value={form.prix} onChange={(e) => setForm({ ...form, prix: e.target.value })} placeholder="2500 Fcfa/kg" />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Sens</label>
-            <select value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}>
-              <option value="entree">Entree</option>
-              <option value="sortie">Sortie</option>
-            </select>
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>{form.direction === 'entree' ? 'Provenance' : 'Destination'}</label>
-            <input
-              value={form.place}
-              onChange={(e) => setForm({ ...form, place: e.target.value })}
-              placeholder="Optionnel - utilise pour le rapport hebdomadaire"
-            />
-          </div>
+          {section.fields.quantiteT && (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>Quantite viande (T)</label>
+              <input type="number" value={form.quantiteT} onChange={(e) => setForm({ ...form, quantiteT: e.target.value })} />
+            </div>
+          )}
+          {section.fields.ecart && (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>Ecart / jour precedent</label>
+              <input type="number" value={form.ecart} onChange={(e) => setForm({ ...form, ecart: e.target.value })} />
+            </div>
+          )}
+          {section.fields.tendance && (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>Tendance</label>
+              <select value={form.tendance} onChange={(e) => setForm({ ...form, tendance: e.target.value })}>
+                <option value="HAUSSE">Hausse</option>
+                <option value="BAISSE">Baisse</option>
+                <option value="STABLE">Stable</option>
+              </select>
+            </div>
+          )}
+          {section.fields.place && (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>Provenance / point d&apos;embarquement</label>
+              <input value={form.place} onChange={(e) => setForm({ ...form, place: e.target.value })} placeholder="Ngaoundere..." />
+            </div>
+          )}
+          {section.fields.prix && (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>Prix</label>
+              <input value={form.prix} onChange={(e) => setForm({ ...form, prix: e.target.value })} placeholder="2500 Fcfa/kg" />
+            </div>
+          )}
           <button onClick={addRow}>Ajouter</button>
         </div>
       </div>
@@ -165,32 +219,28 @@ export default function DailyEntry(): JSX.Element {
       <table className="data-table">
         <thead>
           <tr>
-            <th>Categorie</th>
             <th>Espece</th>
             <th>Point</th>
             <th>Nombre</th>
-            <th>Quantite (T)</th>
-            <th>Ecart</th>
-            <th>Tendance</th>
-            <th>Prix</th>
-            <th>Sens</th>
-            <th>Lieu</th>
+            {section.fields.quantiteT && <th>Quantite (T)</th>}
+            {section.fields.ecart && <th>Ecart</th>}
+            {section.fields.tendance && <th>Tendance</th>}
+            {section.fields.place && <th>Provenance</th>}
+            {section.fields.prix && <th>Prix</th>}
             <th></th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {sectionRows.map((r) => (
             <tr key={r.id}>
-              <td>{r.category}</td>
               <td>{r.species}</td>
               <td>{r.pointName}</td>
               <td>{r.nombre}</td>
-              <td>{r.quantiteT ?? '-'}</td>
-              <td>{r.ecart ?? '-'}</td>
-              <td>{r.tendance ?? '-'}</td>
-              <td>{r.prix ?? '-'}</td>
-              <td>{r.direction === 'sortie' ? 'Sortie' : 'Entree'}</td>
-              <td>{r.place ?? '-'}</td>
+              {section.fields.quantiteT && <td>{r.quantiteT ?? '-'}</td>}
+              {section.fields.ecart && <td>{r.ecart ?? '-'}</td>}
+              {section.fields.tendance && <td>{r.tendance ?? '-'}</td>}
+              {section.fields.place && <td>{r.place ?? '-'}</td>}
+              {section.fields.prix && <td>{r.prix ?? '-'}</td>}
               <td>
                 <button className="secondary" onClick={() => removeRow(r.id)}>
                   Supprimer
@@ -198,9 +248,9 @@ export default function DailyEntry(): JSX.Element {
               </td>
             </tr>
           ))}
-          {rows.length === 0 && (
+          {sectionRows.length === 0 && (
             <tr>
-              <td colSpan={11}>Aucune donnee saisie pour cette date.</td>
+              <td colSpan={9}>Aucune donnee saisie pour {CATEGORY_LABELS[active]} a cette date.</td>
             </tr>
           )}
         </tbody>

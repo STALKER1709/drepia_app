@@ -101,8 +101,10 @@ export async function dailyReportToDocx(data: DailyReportData, outPath: string):
   ]
 
   for (const [category, label] of [
-    ['abattage', 'Abattages controles'],
-    ['sur_pied', 'Animaux sur pied (arrivee)']
+    ['abattage', 'I- Abattages controles'],
+    ['sur_pied', 'II- Animaux sur pied (arrivee)'],
+    ['porc_volaille', 'III- Porcins & Poulet de chair'],
+    ['petit_ruminant', 'IV- Petits ruminants']
   ] as const) {
     const rows = data.entries.filter((r) => r.category === category)
     if (rows.length === 0) continue
@@ -152,7 +154,16 @@ export async function weeklyReportToDocx(data: WeeklyReportData, outPath: string
       const s = sec.sortieRows[i]
       rows.push([e?.place ?? '', String(e?.effectif ?? ''), s?.place ?? '', String(s?.effectif ?? '')])
     }
+    rows.push([
+      'TOTAL',
+      String(sec.totalEntree),
+      'TOTAL',
+      String(sec.totalSortie)
+    ])
     children.push(simpleTable(['Provenance', 'Effectif', 'Destination', 'Effectif'], rows))
+    if (sec.prixMoyen) {
+      children.push(new Paragraph({ children: [new TextRun({ text: `Prix moyen : ${sec.prixMoyen}`, bold: true })] }))
+    }
     children.push(new Paragraph({ text: sec.analysis, alignment: AlignmentType.JUSTIFIED }))
     const png = await renderChartPng({
       type: 'bar',

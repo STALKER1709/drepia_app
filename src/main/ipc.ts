@@ -128,6 +128,53 @@ export function registerIpcHandlers(): void {
   )
   ipcMain.handle('daily:delete', (_e, id: number) => getDb().prepare('DELETE FROM daily_entries WHERE id = ?').run(id))
 
+  // ---- Weekly movements (saisie hebdomadaire independante) ----
+  ipcMain.handle('weekly:list', (_e, weekStart: string, weekEnd: string) =>
+    getDb()
+      .prepare(
+        `SELECT wm.*, cp.name AS marketName FROM weekly_movements wm
+         JOIN collection_points cp ON cp.id = wm.pointId
+         WHERE wm.weekStart = ? AND wm.weekEnd = ? ORDER BY wm.id`
+      )
+      .all(weekStart, weekEnd)
+  )
+  ipcMain.handle(
+    'weekly:create',
+    (
+      _e,
+      entry: {
+        weekStart: string
+        weekEnd: string
+        pointId: number
+        species: string
+        direction: string
+        place: string
+        effectif: number
+        prixMoyen: string | null
+        createdBy: number
+      }
+    ) =>
+      getDb()
+        .prepare(
+          `INSERT INTO weekly_movements (weekStart, weekEnd, pointId, species, direction, place, effectif, prixMoyen, createdBy)
+           VALUES (?,?,?,?,?,?,?,?,?)`
+        )
+        .run(
+          entry.weekStart,
+          entry.weekEnd,
+          entry.pointId,
+          entry.species,
+          entry.direction === 'sortie' ? 'sortie' : 'entree',
+          entry.place,
+          entry.effectif,
+          entry.prixMoyen,
+          entry.createdBy
+        )
+  )
+  ipcMain.handle('weekly:delete', (_e, id: number) =>
+    getDb().prepare('DELETE FROM weekly_movements WHERE id = ?').run(id)
+  )
+
   // ---- Monthly inventory ----
   ipcMain.handle('inventory:gridGet', (_e, tableId: string, month: string) =>
     getDb().prepare('SELECT * FROM inventory_grid_values WHERE tableId = ? AND month = ?').all(tableId, month)
@@ -182,30 +229,32 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('report:generateWeekly', async (_e, weekStart: string, weekEnd: string, createdBy: number) => {
-    const dailyRows = getDb()
+    const savedRows = getDb()
       .prepare(
-        `SELECT de.*, cp.name AS pointName FROM daily_entries de
-         JOIN collection_points cp ON cp.id = de.pointId
-         WHERE de.date >= ? AND de.date <= ? AND de.place IS NOT NULL AND de.place != ''
-         ORDER BY de.id`
+        `SELECT wm.*, cp.name AS marketName FROM weekly_movements wm
+         JOIN collection_points cp ON cp.id = wm.pointId
+         WHERE wm.weekStart = ? AND wm.weekEnd = ?
+         ORDER BY wm.id`
       )
       .all(weekStart, weekEnd) as Array<{
-      pointName: string
+      pointId: number
+      marketName: string
       species: string
       direction: string
       place: string
-      nombre: number
-      prix: string | null
+      effectif: number
+      prixMoyen: string | null
     }>
-    const rows: WeeklyMovementRow[] = dailyRows.map((r) => ({
+    const rows: WeeklyMovementRow[] = savedRows.map((r) => ({
       weekStart,
       weekEnd,
-      marketName: r.pointName,
+      pointId: r.pointId,
+      marketName: r.marketName,
       species: r.species,
       direction: r.direction === 'sortie' ? 'sortie' : 'entree',
       place: r.place,
-      effectif: r.nombre,
-      prixMoyen: r.prix
+      effectif: r.effectif,
+      prixMoyen: r.prixMoyen
     }))
     const html = await buildWeeklyReportHtml({ weekStart, weekEnd, rows })
     const base = path.join(reportsDir(), `hebdomadaire_${weekStart}_${weekEnd}`)

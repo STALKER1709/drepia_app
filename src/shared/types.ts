@@ -57,12 +57,14 @@ export interface LogTableDef {
 
 export type TableDef = (GridTableDef & { kind: 'grid' }) | (LogTableDef & { kind: 'log' })
 
+export type DailyCategory = 'abattage' | 'sur_pied' | 'porc_volaille' | 'petit_ruminant' | 'autre'
+
 export interface DailyEntryRow {
   id?: number
   date: string
   species: string
   pointId: number
-  category: 'abattage' | 'sur_pied' | 'autre'
+  category: DailyCategory
   nombre: number
   quantiteT?: number | null
   ecart?: number | null
@@ -73,18 +75,20 @@ export interface DailyEntryRow {
 }
 
 /**
- * Shape consumed by the weekly report builder. Computed on the fly from
- * `daily_entries` (grouped by point/espece/sens) rather than persisted —
- * the weekly report is a rollup of daily entries, not a separate entry form.
+ * A weekly market movement, saved independently in the `weekly_movements`
+ * table via the dedicated "Saisie hebdomadaire" module. Each row is one
+ * provenance (entree) or destination (sortie) for a given market/species,
+ * and the weekly report is built directly from these saved rows.
  */
 export interface WeeklyMovementRow {
   id?: number
   weekStart: string
   weekEnd: string
+  pointId: number
   marketName: string
   species: string
   direction: 'entree' | 'sortie'
-  place: string // provenance ou destination
+  place: string // provenance (entree) ou destination (sortie)
   effectif: number
   prixMoyen?: string | null
 }

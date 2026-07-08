@@ -8,10 +8,12 @@ Animales (DREPIA) - Region du Centre.
 ## Fonctionnalites
 
 - Connexion avec roles : Administrateur, Agent de saisie, Superviseur, Lecture seule.
-- Saisie journaliere : abattages controles, animaux sur pied, prix, tendances, et
-  mouvements de marche (entree/sortie + provenance/destination).
-- Rapport hebdomadaire : recalcule automatiquement a partir des mouvements
-  entree/sortie saisis dans la saisie journaliere (pas de saisie separee).
+- Saisie journaliere : organisee en 4 sections (abattages controles, animaux sur
+  pied, porcins & poulet de chair, petits ruminants) fideles a la "Veille de
+  disponibilite".
+- Saisie hebdomadaire : module independant de saisie des mouvements de marche
+  (entrees/sorties par marche et espece, provenance/destination, prix moyen). Le
+  rapport hebdomadaire est genere directement a partir de ces donnees.
 - Saisie mensuelle : les 28 tableaux de l'inventaire statistique (cheptel, volailles,
   peche, abattages, services veterinaires, import/export...), pilotee par des
   definitions de tableaux generiques (`src/shared/inventoryTables.ts`). Le tableau

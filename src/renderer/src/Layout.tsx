@@ -4,6 +4,7 @@ import { useAuth } from './auth'
 const NAV_ITEMS: Array<{ to: string; label: string; roles: string[] }> = [
   { to: '/', label: 'Tableau de bord', roles: ['admin', 'agent', 'superviseur', 'lecture'] },
   { to: '/saisie/journalier', label: 'Saisie journaliere', roles: ['admin', 'agent', 'superviseur'] },
+  { to: '/saisie/hebdomadaire', label: 'Saisie hebdomadaire', roles: ['admin', 'agent', 'superviseur'] },
   { to: '/saisie/mensuel', label: 'Saisie mensuelle (Inventaire)', roles: ['admin', 'agent', 'superviseur'] },
   { to: '/rapports', label: 'Generation des rapports', roles: ['admin', 'superviseur', 'lecture'] },
   { to: '/utilisateurs', label: 'Utilisateurs', roles: ['admin'] }
