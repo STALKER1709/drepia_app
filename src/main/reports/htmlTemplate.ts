@@ -33,6 +33,8 @@ export function pageShell(title: string, bodyHtml: string): string {
   th, td { border: 1px solid #888; padding: 3px 5px; text-align: center; }
   th { background: #eef5ee; font-weight: bold; }
   td.label, th.label { text-align: left; }
+  td.price { white-space: pre-line; }
+  tr.total-row td { font-weight: bold; background: #eef5ee; }
   p.analysis { text-align: justify; margin: 6px 0 14px; }
   .chart-img { display: block; margin: 10px auto; max-width: 100%; }
   .section-title { background: #1f6f3d; color: white; padding: 4px 8px; font-size: 13px; margin-top: 24px; }

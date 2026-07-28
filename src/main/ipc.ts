@@ -129,19 +129,42 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('daily:delete', (_e, id: number) => getDb().prepare('DELETE FROM daily_entries WHERE id = ?').run(id))
 
   /**
-   * Most recent slaughter total recorded *before* `date` for the same species
-   * and collection point. Backs the automatic "ecart / jour precedent" (%)
-   * shown in the Abattages controles section.
+   * Most recent totals recorded *before* `date` for the same section, species
+   * and collection point. Backs the automatic "ecart sur la journee
+   * precedente", expressed in tonnes for Abattages controles and in heads for
+   * the other sections.
    */
-  ipcMain.handle('daily:previousAbattage', (_e, date: string, species: string, pointId: number) => {
+  ipcMain.handle(
+    'daily:previousTotals',
+    (_e, date: string, category: string, species: string, pointId: number) => {
+      const row = getDb()
+        .prepare(
+          `SELECT date, SUM(nombre) AS nombre, SUM(COALESCE(quantiteT, 0)) AS quantiteT
+           FROM daily_entries
+           WHERE category = ? AND pointId = ?
+             AND lower(trim(species)) = lower(trim(?)) AND date < ?
+           GROUP BY date ORDER BY date DESC LIMIT 1`
+        )
+        .get(category, pointId, species, date) as
+        | { date: string; nombre: number; quantiteT: number }
+        | undefined
+      return row ?? null
+    }
+  )
+
+  /**
+   * Most recent whole-section total recorded *before* `date`. Used by the
+   * "Animaux sur pied" section, whose ecart applies to the day's grand total
+   * rather than to individual rows.
+   */
+  ipcMain.handle('daily:previousSectionTotal', (_e, date: string, category: string) => {
     const row = getDb()
       .prepare(
         `SELECT date, SUM(nombre) AS total FROM daily_entries
-         WHERE category = 'abattage' AND pointId = ?
-           AND lower(trim(species)) = lower(trim(?)) AND date < ?
+         WHERE category = ? AND date < ?
          GROUP BY date ORDER BY date DESC LIMIT 1`
       )
-      .get(pointId, species, date) as { date: string; total: number } | undefined
+      .get(category, date) as { date: string; total: number } | undefined
     return row ?? null
   })
 
@@ -235,10 +258,22 @@ export function registerIpcHandlers(): void {
          JOIN collection_points cp ON cp.id = de.pointId WHERE de.date = ? ORDER BY de.id`
       )
       .all(date) as never[]
-    const html = await buildDailyReportHtml({ date, entries: entries as never })
+    const prevSurPied = getDb()
+      .prepare(
+        `SELECT SUM(nombre) AS total FROM daily_entries
+         WHERE category = 'sur_pied' AND date < ?
+         GROUP BY date ORDER BY date DESC LIMIT 1`
+      )
+      .get(date) as { total: number } | undefined
+    const reportData = {
+      date,
+      entries: entries as never,
+      previousSurPiedTotal: prevSurPied?.total ?? null
+    }
+    const html = await buildDailyReportHtml(reportData)
     const base = path.join(reportsDir(), `journalier_${date}`)
     await htmlToPdfFile(html, `${base}.pdf`)
-    await dailyReportToDocx({ date, entries: entries as never }, `${base}.docx`)
+    await dailyReportToDocx(reportData, `${base}.docx`)
     const info = getDb()
       .prepare('INSERT INTO reports (type, periodLabel, createdBy, pdfPath, docxPath) VALUES (?,?,?,?,?)')
       .run('journalier', date, createdBy, `${base}.pdf`, `${base}.docx`)

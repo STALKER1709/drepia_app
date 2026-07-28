@@ -100,27 +100,106 @@ export async function dailyReportToDocx(data: DailyReportData, outPath: string):
     new Paragraph({ text: `Donnees du ${new Date(data.date).toLocaleDateString('fr-FR')}`, alignment: AlignmentType.RIGHT })
   ]
 
+  const round3 = (n: number): number => Number(n.toFixed(3))
+  const signed = (n: number): string => `${n > 0 ? '+' : ''}${round3(n)}`
+  const trend = (n: number): string => (n > 0 ? 'HAUSSE' : n < 0 ? 'BAISSE' : 'STABLE')
+
+  // Section I : Abattages controles (ecart en tonnes)
+  const abattage = data.entries.filter((r) => r.category === 'abattage')
+  if (abattage.length > 0) {
+    children.push(headingParagraph('Abattages Controles'))
+    const body = abattage.map((r) => [
+      r.species,
+      r.pointName,
+      String(r.nombre),
+      String(r.quantiteT ?? '-'),
+      r.ecart == null ? '-' : signed(r.ecart),
+      r.tendance ?? '-',
+      r.prix ?? '-'
+    ])
+    body.push([
+      'TOTAL du jour',
+      '',
+      String(abattage.reduce((a, r) => a + (r.nombre || 0), 0)),
+      String(round3(abattage.reduce((a, r) => a + (r.quantiteT || 0), 0))),
+      '',
+      '',
+      ''
+    ])
+    children.push(
+      simpleTable(
+        [
+          'Espece',
+          'Point de collecte',
+          'Nombre abattue (en tetes)',
+          'Quantite de viande (T)',
+          'Ecart (T) sur la journee precedente',
+          'Tendance du jour',
+          'Prix du kg'
+        ],
+        body
+      )
+    )
+    const png = await renderChartPng({
+      type: 'bar',
+      title: 'Abattages Controles',
+      labels: abattage.map((r) => r.species),
+      datasets: [{ label: 'Nombre', data: abattage.map((r) => r.nombre) }]
+    })
+    children.push(imageParagraph(png))
+  }
+
+  // Section II : Animaux sur pied, avec lignes de synthese
+  const surPied = data.entries.filter((r) => r.category === 'sur_pied')
+  if (surPied.length > 0) {
+    children.push(headingParagraph('Animaux Sur Pied (arrivee)'))
+    const total = surPied.reduce((a, r) => a + (r.nombre || 0), 0)
+    const prev = data.previousSurPiedTotal
+    const ecart = prev == null ? null : total - prev
+    const prix = surPied.find((r) => r.prix)?.prix ?? '-'
+    const body = surPied.map((r, i) => [r.place ?? r.pointName, String(r.nombre), i === 0 ? prix : ''])
+    body.push(['TOTAL du jour', String(total), ''])
+    body.push(['Ecart sur la journee precedente', ecart == null ? '-' : signed(ecart), ''])
+    body.push(['Tendance du jour', ecart == null ? '-' : trend(ecart), ''])
+    children.push(simpleTable(["Point d'embarquement", 'Nombre de tetes', 'Prix Moyen'], body))
+  }
+
+  // Sections III & IV : ecart en tetes
   for (const [category, label] of [
-    ['abattage', 'I- Abattages controles'],
-    ['sur_pied', 'II- Animaux sur pied (arrivee)'],
-    ['porc_volaille', 'III- Porcins & Poulet de chair'],
-    ['petit_ruminant', 'IV- Petits ruminants']
+    ['porc_volaille', 'Porcins et Poulet de chair'],
+    ['petit_ruminant', 'Petits Ruminants']
   ] as const) {
     const rows = data.entries.filter((r) => r.category === category)
     if (rows.length === 0) continue
     children.push(headingParagraph(label))
+    const totalEcart = rows.reduce((a, r) => a + (r.ecart || 0), 0)
+    const body = rows.map((r) => [
+      r.species,
+      r.pointName,
+      String(r.nombre),
+      r.ecart == null ? '-' : signed(r.ecart),
+      r.tendance ?? '-',
+      r.prix ?? '-'
+    ])
+    body.push([
+      'Total',
+      '',
+      String(rows.reduce((a, r) => a + (r.nombre || 0), 0)),
+      signed(totalEcart),
+      trend(totalEcart),
+      ''
+    ])
     children.push(
       simpleTable(
-        ['Espece', 'Point de collecte', 'Nombre', 'Quantite (T)', 'Ecart', 'Tendance', 'Prix'],
-        rows.map((r) => [
-          r.species,
-          r.pointName,
-          String(r.nombre),
-          String(r.quantiteT ?? '-'),
-          String(r.ecart ?? '-'),
-          r.tendance ?? '-',
-          r.prix ?? '-'
-        ])
+        [
+          'Espece',
+          'Point de collecte',
+          'Nombre',
+          'Ecart (Tetes) sur la journee precedente',
+          'Tendance du jour',
+          'Prix Moyen'
+        ],
+        body
       )
     )
     const png = await renderChartPng({
