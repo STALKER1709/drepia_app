@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth'
-
-interface Point {
-  id: number
-  name: string
-  type: string
-}
+import PointSelect from '../components/PointSelect'
 
 interface WeeklyRow {
   id: number
@@ -38,7 +33,6 @@ export default function WeeklyEntry(): JSX.Element {
   const { user } = useAuth()
   const [weekStart, setWeekStart] = useState(startOfWeek())
   const [weekEnd, setWeekEnd] = useState(endOfWeek(startOfWeek()))
-  const [points, setPoints] = useState<Point[]>([])
   const [rows, setRows] = useState<WeeklyRow[]>([])
   const [form, setForm] = useState({
     pointId: 0,
@@ -48,13 +42,6 @@ export default function WeeklyEntry(): JSX.Element {
     effectif: '',
     prixMoyen: ''
   })
-
-  useEffect(() => {
-    window.api.ref.points().then((p) => {
-      setPoints(p as Point[])
-      if ((p as Point[]).length > 0) setForm((f) => ({ ...f, pointId: (p as Point[])[0].id }))
-    })
-  }, [])
 
   const refresh = (): void => {
     window.api.weekly.list(weekStart, weekEnd).then((r) => setRows(r as WeeklyRow[]))
@@ -114,16 +101,7 @@ export default function WeeklyEntry(): JSX.Element {
         </div>
 
         <div className="toolbar">
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Marche / point</label>
-            <select value={form.pointId} onChange={(e) => setForm({ ...form, pointId: Number(e.target.value) })}>
-              {points.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <PointSelect value={form.pointId} onChange={(id) => setForm((f) => ({ ...f, pointId: id }))} />
           <div className="field" style={{ marginBottom: 0 }}>
             <label>Espece</label>
             <select value={form.species} onChange={(e) => setForm({ ...form, species: e.target.value })}>

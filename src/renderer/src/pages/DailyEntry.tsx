@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth'
-
-interface Point {
-  id: number
-  name: string
-  type: string
-}
+import PointSelect from '../components/PointSelect'
 
 interface DailyRow {
   id: number
@@ -70,7 +65,6 @@ function abattageCoef(species: string): number | null {
 export default function DailyEntry(): JSX.Element {
   const { user } = useAuth()
   const [date, setDate] = useState(TODAY)
-  const [points, setPoints] = useState<Point[]>([])
   const [rows, setRows] = useState<DailyRow[]>([])
   const [active, setActive] = useState<Category>('abattage')
   const [form, setForm] = useState({
@@ -88,13 +82,6 @@ export default function DailyEntry(): JSX.Element {
   const autoCoef = active === 'abattage' ? abattageCoef(form.species) : null
   const computedQuantiteT =
     autoCoef != null && form.nombre ? (Number(form.nombre) * autoCoef) / 1000 : null
-
-  useEffect(() => {
-    window.api.ref.points().then((p) => {
-      setPoints(p as Point[])
-      if ((p as Point[]).length > 0) setForm((f) => ({ ...f, pointId: (p as Point[])[0].id }))
-    })
-  }, [])
 
   const refresh = (): void => {
     window.api.daily.list(date).then((r) => setRows(r as DailyRow[]))
@@ -184,16 +171,11 @@ export default function DailyEntry(): JSX.Element {
               ))}
             </datalist>
           </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Point de collecte</label>
-            <select value={form.pointId} onChange={(e) => setForm({ ...form, pointId: Number(e.target.value) })}>
-              {points.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <PointSelect
+            label="Point de collecte"
+            value={form.pointId}
+            onChange={(id) => setForm((f) => ({ ...f, pointId: id }))}
+          />
           <div className="field" style={{ marginBottom: 0 }}>
             <label>Nombre (tetes)</label>
             <input type="number" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
