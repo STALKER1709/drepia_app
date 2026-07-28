@@ -128,6 +128,23 @@ export function registerIpcHandlers(): void {
   )
   ipcMain.handle('daily:delete', (_e, id: number) => getDb().prepare('DELETE FROM daily_entries WHERE id = ?').run(id))
 
+  /**
+   * Most recent slaughter total recorded *before* `date` for the same species
+   * and collection point. Backs the automatic "ecart / jour precedent" (%)
+   * shown in the Abattages controles section.
+   */
+  ipcMain.handle('daily:previousAbattage', (_e, date: string, species: string, pointId: number) => {
+    const row = getDb()
+      .prepare(
+        `SELECT date, SUM(nombre) AS total FROM daily_entries
+         WHERE category = 'abattage' AND pointId = ?
+           AND lower(trim(species)) = lower(trim(?)) AND date < ?
+         GROUP BY date ORDER BY date DESC LIMIT 1`
+      )
+      .get(pointId, species, date) as { date: string; total: number } | undefined
+    return row ?? null
+  })
+
   // ---- Weekly movements (saisie hebdomadaire independante) ----
   ipcMain.handle('weekly:list', (_e, weekStart: string, weekEnd: string) =>
     getDb()

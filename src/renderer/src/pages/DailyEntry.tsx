@@ -83,6 +83,26 @@ export default function DailyEntry(): JSX.Element {
   const computedQuantiteT =
     autoCoef != null && form.nombre ? (Number(form.nombre) * autoCoef) / 1000 : null
 
+  // Ecart automatique (%) par rapport a la derniere saisie anterieure pour la
+  // meme espece et le meme point, dans les abattages controles.
+  const [previous, setPrevious] = useState<{ date: string; total: number } | null>(null)
+  useEffect(() => {
+    if (active !== 'abattage' || !form.species.trim() || !form.pointId) {
+      setPrevious(null)
+      return
+    }
+    window.api.daily
+      .previousAbattage(date, form.species, form.pointId)
+      .then((p) => setPrevious(p as { date: string; total: number } | null))
+  }, [active, date, form.species, form.pointId])
+
+  const computedEcart =
+    previous && previous.total > 0 && form.nombre
+      ? ((Number(form.nombre) - previous.total) / previous.total) * 100
+      : null
+  const autoTendance =
+    computedEcart == null ? null : computedEcart > 0 ? 'HAUSSE' : computedEcart < 0 ? 'BAISSE' : 'STABLE'
+
   const refresh = (): void => {
     window.api.daily.list(date).then((r) => setRows(r as DailyRow[]))
   }
@@ -107,8 +127,14 @@ export default function DailyEntry(): JSX.Element {
             ? Number(form.quantiteT)
             : null
         : null,
-      ecart: section.fields.ecart && form.ecart ? Number(form.ecart) : null,
-      tendance: section.fields.tendance ? form.tendance : null,
+      ecart: section.fields.ecart
+        ? computedEcart != null
+          ? Number(computedEcart.toFixed(3))
+          : form.ecart
+            ? Number(form.ecart)
+            : null
+        : null,
+      tendance: section.fields.tendance ? (autoTendance ?? form.tendance) : null,
       prix: form.prix || null,
       direction: 'entree',
       place: section.fields.place ? form.place || null : null,
@@ -198,14 +224,37 @@ export default function DailyEntry(): JSX.Element {
           )}
           {section.fields.ecart && (
             <div className="field" style={{ marginBottom: 0 }}>
-              <label>Ecart / jour precedent</label>
-              <input type="number" value={form.ecart} onChange={(e) => setForm({ ...form, ecart: e.target.value })} />
+              <label>
+                Ecart / jour precedent (%)
+                {computedEcart != null ? ' (auto)' : ''}
+              </label>
+              {computedEcart != null ? (
+                <input
+                  type="number"
+                  value={Number(computedEcart.toFixed(3))}
+                  readOnly
+                  title={`Calcul automatique par rapport au ${previous?.date} (${previous?.total} tetes)`}
+                  style={{ background: '#eef5ee' }}
+                />
+              ) : (
+                <input type="number" value={form.ecart} onChange={(e) => setForm({ ...form, ecart: e.target.value })} />
+              )}
+              {active === 'abattage' && previous && (
+                <span style={{ fontSize: 11, color: '#666' }}>
+                  Veille : {previous.total} tetes le {previous.date}
+                </span>
+              )}
             </div>
           )}
           {section.fields.tendance && (
             <div className="field" style={{ marginBottom: 0 }}>
-              <label>Tendance</label>
-              <select value={form.tendance} onChange={(e) => setForm({ ...form, tendance: e.target.value })}>
+              <label>Tendance{autoTendance ? ' (auto)' : ''}</label>
+              <select
+                value={autoTendance ?? form.tendance}
+                disabled={autoTendance != null}
+                onChange={(e) => setForm({ ...form, tendance: e.target.value })}
+                style={autoTendance ? { background: '#eef5ee' } : undefined}
+              >
                 <option value="HAUSSE">Hausse</option>
                 <option value="BAISSE">Baisse</option>
                 <option value="STABLE">Stable</option>

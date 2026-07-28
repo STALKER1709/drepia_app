@@ -22,7 +22,9 @@ const api = {
   daily: {
     list: (date: string) => ipcRenderer.invoke('daily:list', date),
     create: (entry: unknown) => ipcRenderer.invoke('daily:create', entry),
-    delete: (id: number) => ipcRenderer.invoke('daily:delete', id)
+    delete: (id: number) => ipcRenderer.invoke('daily:delete', id),
+    previousAbattage: (date: string, species: string, pointId: number) =>
+      ipcRenderer.invoke('daily:previousAbattage', date, species, pointId)
   },
   weekly: {
     list: (weekStart: string, weekEnd: string) => ipcRenderer.invoke('weekly:list', weekStart, weekEnd),
