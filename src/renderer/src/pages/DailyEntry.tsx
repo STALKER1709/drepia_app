@@ -56,6 +56,17 @@ const SECTIONS: Array<{ key: Category; label: string; fields: Record<string, boo
 
 const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(SECTIONS.map((s) => [s.key, s.label]))
 
+// Rendement carcasse (kg de viande par tete abattue). La quantite (T) est
+// calculee automatiquement pour ces especes : (nombre * coef) / 1000.
+const ABATTAGE_COEF: Array<{ test: RegExp; coef: number }> = [
+  { test: /^bovin/i, coef: 195 },
+  { test: /^(volaill|poulet|poule)/i, coef: 2 }
+]
+function abattageCoef(species: string): number | null {
+  const m = ABATTAGE_COEF.find((c) => c.test.test(species.trim()))
+  return m ? m.coef : null
+}
+
 export default function DailyEntry(): JSX.Element {
   const { user } = useAuth()
   const [date, setDate] = useState(TODAY)
@@ -74,6 +85,9 @@ export default function DailyEntry(): JSX.Element {
   })
 
   const section = SECTIONS.find((s) => s.key === active)!
+  const autoCoef = active === 'abattage' ? abattageCoef(form.species) : null
+  const computedQuantiteT =
+    autoCoef != null && form.nombre ? (Number(form.nombre) * autoCoef) / 1000 : null
 
   useEffect(() => {
     window.api.ref.points().then((p) => {
@@ -99,7 +113,13 @@ export default function DailyEntry(): JSX.Element {
       pointId: form.pointId,
       category: active,
       nombre: Number(form.nombre),
-      quantiteT: section.fields.quantiteT && form.quantiteT ? Number(form.quantiteT) : null,
+      quantiteT: section.fields.quantiteT
+        ? autoCoef != null
+          ? computedQuantiteT
+          : form.quantiteT
+            ? Number(form.quantiteT)
+            : null
+        : null,
       ecart: section.fields.ecart && form.ecart ? Number(form.ecart) : null,
       tendance: section.fields.tendance ? form.tendance : null,
       prix: form.prix || null,
@@ -180,8 +200,18 @@ export default function DailyEntry(): JSX.Element {
           </div>
           {section.fields.quantiteT && (
             <div className="field" style={{ marginBottom: 0 }}>
-              <label>Quantite viande (T)</label>
-              <input type="number" value={form.quantiteT} onChange={(e) => setForm({ ...form, quantiteT: e.target.value })} />
+              <label>Quantite viande (T){autoCoef != null ? ' (auto)' : ''}</label>
+              {autoCoef != null ? (
+                <input
+                  type="number"
+                  value={computedQuantiteT != null ? Number(computedQuantiteT.toFixed(3)) : ''}
+                  readOnly
+                  title={`Calcul automatique : (nombre x ${autoCoef}) / 1000`}
+                  style={{ background: '#eef5ee' }}
+                />
+              ) : (
+                <input type="number" value={form.quantiteT} onChange={(e) => setForm({ ...form, quantiteT: e.target.value })} />
+              )}
             </div>
           )}
           {section.fields.ecart && (
